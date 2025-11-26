@@ -5,10 +5,14 @@ import L from 'leaflet';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
 import { MOCK_INCIDENTS } from '../constants';
+import { Loader2, Navigation } from 'lucide-react';
 
 // Fix for default marker icon in Leaflet with Webpack/Vite
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// REPLACE WITH YOUR TOMTOM API KEY
+const TOMTOM_API_KEY = 'TadNELv6Zo5VRjQYZLh6IiwcsFXqdp5d';
 
 let DefaultIcon = L.icon({
   iconUrl: icon,
@@ -40,6 +44,8 @@ const MapComponent: React.FC = () => {
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [loadingLocation, setLoadingLocation] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     // Connect to backend
@@ -51,6 +57,7 @@ const MapComponent: React.FC = () => {
     });
 
     newSocket.on('locationUpdate', (data: { id: string; latitude: number; longitude: number }) => {
+      console.log('Received location update:', data);
       setOtherUsers((prev) => ({
         ...prev,
         [data.id]: { latitude: data.latitude, longitude: data.longitude }
@@ -70,32 +77,59 @@ const MapComponent: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
+  const handleLocate = () => {
+    setLoadingLocation(true);
+    setLocationError(null);
+
     if (!navigator.geolocation) {
-      console.log('Geolocation is not supported by your browser');
+      setLocationError('Geolocation is not supported by your browser');
+      setLoadingLocation(false);
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setPosition([latitude, longitude]);
-
-        if (socket) {
-          socket.emit('updateLocation', { latitude, longitude });
-        }
-      },
-      (err) => {
-        console.error('Error getting location', err);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
+    const success = (pos: GeolocationPosition) => {
+      const { latitude, longitude } = pos.coords;
+      console.log('Manual location update:', latitude, longitude);
+      setPosition([latitude, longitude]);
+      setLoadingLocation(false);
+      if (socket) {
+        socket.emit('updateLocation', { latitude, longitude });
       }
-    );
+    };
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    const error = (err: GeolocationPositionError) => {
+      console.error('Error getting location', err);
+      let msg = 'Unable to retrieve your location';
+      if (err.code === 1) msg = 'Location permission denied. Please allow access.';
+      if (err.code === 2) msg = 'Location unavailable. Check GPS/Network.';
+      if (err.code === 3) msg = 'Location request timed out.';
+
+      setLocationError(msg);
+      setLoadingLocation(false);
+    };
+
+    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+
+    navigator.geolocation.getCurrentPosition(success, error, options);
+  };
+
+  useEffect(() => {
+    handleLocate();
+
+    if (navigator.geolocation) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setPosition([latitude, longitude]);
+          if (socket) {
+            socket.emit('updateLocation', { latitude, longitude });
+          }
+        },
+        (err) => console.error(err),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
   }, [socket]);
 
   // Default center (NYC) if no location yet
@@ -110,11 +144,8 @@ const MapComponent: React.FC = () => {
         className="z-0"
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url={theme === 'dark'
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-          }
+          attribution='&copy; <a href="https://www.tomtom.com">TomTom</a>'
+          url={`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`}
         />
 
         <LocationMarker position={position} />
@@ -136,6 +167,27 @@ const MapComponent: React.FC = () => {
           </Marker>
         ))}
       </MapContainer>
+
+      {/* Location Status / Manual Locate Button */}
+      <div className="absolute bottom-24 right-4 z-[1000]">
+        <button
+          onClick={handleLocate}
+          className="bg-background border border-input shadow-lg rounded-full p-3 hover:bg-muted transition-colors"
+          title="Locate Me"
+        >
+          {loadingLocation ? (
+            <Loader2 className="animate-spin text-primary" size={24} />
+          ) : (
+            <Navigation className={position ? "text-primary" : "text-muted-foreground"} size={24} />
+          )}
+        </button>
+      </div>
+
+      {locationError && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-destructive text-destructive-foreground px-4 py-2 rounded shadow-lg text-sm">
+          {locationError}
+        </div>
+      )}
     </div>
   );
 };

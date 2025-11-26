@@ -33,6 +33,7 @@ io.on('connection', (socket: Socket) => {
 
     // Handle location updates from a client
     socket.on('updateLocation', (data: LocationData) => {
+        console.log(`Received location from ${socket.id}:`, data);
         // data should contain { latitude, longitude, ... }
         users[socket.id] = { ...data, id: socket.id, lastUpdated: new Date() };
 
