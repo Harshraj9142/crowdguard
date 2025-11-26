@@ -43,7 +43,7 @@ const MapComponent: React.FC = () => {
 
   useEffect(() => {
     // Connect to backend
-    const newSocket = io('http://localhost:3001');
+    const newSocket = io('http://localhost:4000');
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
@@ -120,7 +120,7 @@ const MapComponent: React.FC = () => {
         <LocationMarker position={position} />
 
         {/* Render other users */}
-        {Object.entries(otherUsers).map(([id, loc]) => (
+        {Object.entries(otherUsers).map(([id, loc]: [string, { latitude: number; longitude: number }]) => (
           <Marker key={id} position={[loc.latitude, loc.longitude]}>
             <Popup>User: {id.slice(0, 5)}</Popup>
           </Marker>
