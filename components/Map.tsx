@@ -4,8 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
-import { MOCK_INCIDENTS } from '../constants';
-import { Loader2, Navigation } from 'lucide-react';
+import { Loader2, Navigation, AlertTriangle } from 'lucide-react';
 
 // Fix for default marker icon in Leaflet with Webpack/Vite
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -40,7 +39,7 @@ const LocationMarker = ({ position }: { position: [number, number] | null }) => 
 };
 
 const MapComponent: React.FC = () => {
-  const { theme } = useStore();
+  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, setUserLocation } = useStore();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -48,6 +47,9 @@ const MapComponent: React.FC = () => {
   const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Fetch initial incidents
+    fetchIncidents();
+
     // Connect to backend
     const newSocket = io('http://localhost:4000');
     setSocket(newSocket);
@@ -57,7 +59,6 @@ const MapComponent: React.FC = () => {
     });
 
     newSocket.on('locationUpdate', (data: { id: string; latitude: number; longitude: number }) => {
-      console.log('Received location update:', data);
       setOtherUsers((prev) => ({
         ...prev,
         [data.id]: { latitude: data.latitude, longitude: data.longitude }
@@ -70,6 +71,11 @@ const MapComponent: React.FC = () => {
         delete newState[id];
         return newState;
       });
+    });
+
+    newSocket.on('newIncident', (incident) => {
+      console.log('New incident received:', incident);
+      receiveIncident(incident);
     });
 
     return () => {
@@ -89,8 +95,8 @@ const MapComponent: React.FC = () => {
 
     const success = (pos: GeolocationPosition) => {
       const { latitude, longitude } = pos.coords;
-      console.log('Manual location update:', latitude, longitude);
       setPosition([latitude, longitude]);
+      setUserLocation([latitude, longitude]);
       setLoadingLocation(false);
       if (socket) {
         socket.emit('updateLocation', { latitude, longitude });
@@ -121,6 +127,7 @@ const MapComponent: React.FC = () => {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setPosition([latitude, longitude]);
+          setUserLocation([latitude, longitude]);
           if (socket) {
             socket.emit('updateLocation', { latitude, longitude });
           }
@@ -131,6 +138,24 @@ const MapComponent: React.FC = () => {
       return () => navigator.geolocation.clearWatch(watchId);
     }
   }, [socket]);
+
+  const handleReportTestIncident = () => {
+    if (!position) return;
+    const types = ['theft', 'assault', 'harassment', 'accident', 'suspicious'] as const;
+    const randomType = types[Math.floor(Math.random() * types.length)];
+
+    addIncident({
+      id: Date.now().toString(),
+      type: randomType,
+      latitude: position[0] + (Math.random() - 0.5) * 0.01,
+      longitude: position[1] + (Math.random() - 0.5) * 0.01,
+      description: `Reported ${randomType} near you`,
+      timestamp: new Date().toISOString(),
+      verified: false,
+      reporterId: 'me',
+      upvotes: 0
+    });
+  };
 
   // Default center (NYC) if no location yet
   const center: [number, number] = position || [40.7128, -74.0060];
@@ -158,7 +183,7 @@ const MapComponent: React.FC = () => {
         ))}
 
         {/* Render Incidents */}
-        {MOCK_INCIDENTS.map((incident) => (
+        {incidents.map((incident) => (
           <Marker key={incident.id} position={[incident.latitude, incident.longitude]}>
             <Popup>
               <strong>{incident.type}</strong><br />
@@ -168,8 +193,16 @@ const MapComponent: React.FC = () => {
         ))}
       </MapContainer>
 
-      {/* Location Status / Manual Locate Button */}
-      <div className="absolute bottom-24 right-4 z-[1000]">
+      {/* Controls */}
+      <div className="absolute bottom-24 right-4 z-[1000] flex flex-col gap-2">
+        <button
+          onClick={handleReportTestIncident}
+          className="bg-red-600 text-white shadow-lg rounded-full p-3 hover:bg-red-700 transition-colors"
+          title="Report Test Incident"
+        >
+          <AlertTriangle size={24} />
+        </button>
+
         <button
           onClick={handleLocate}
           className="bg-background border border-input shadow-lg rounded-full p-3 hover:bg-muted transition-colors"
