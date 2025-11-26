@@ -1,140 +1,143 @@
-import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
 import { MOCK_INCIDENTS } from '../constants';
-import { MapPin, AlertTriangle } from 'lucide-react';
-import { motion } from 'framer-motion';
 
-// NOTE: Ideally, this comes from an env variable.
-// Using a placeholder; if it fails, we fall back to simulated map.
-const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''; 
+// Fix for default marker icon in Leaflet with Webpack/Vite
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-const MapComponent: React.FC = () => {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const { theme } = useStore();
-  const [mapError, setMapError] = useState(false);
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
 
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// Component to update map center when user location changes
+const LocationMarker = ({ position }: { position: [number, number] | null }) => {
+  const map = useMap();
   useEffect(() => {
-    if (!TOKEN) {
-      setMapError(true);
-      return;
+    if (position) {
+      map.flyTo(position, map.getZoom());
     }
+  }, [position, map]);
 
-    try {
-      mapboxgl.accessToken = TOKEN;
-      if (map.current || !mapContainer.current) return;
-
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: theme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
-        center: [-74.0060, 40.7128], // NYC
-        zoom: 12,
-        attributionControl: false
-      });
-
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-      map.current.on('error', () => {
-         setMapError(true);
-      });
-
-      // Add markers
-      MOCK_INCIDENTS.forEach((incident) => {
-        const el = document.createElement('div');
-        el.className = 'w-6 h-6 bg-safety rounded-full border-2 border-white cursor-pointer shadow-lg animate-pulse';
-        el.addEventListener('click', () => {
-            window.alert(`Incident: ${incident.type}\n${incident.description}`);
-        });
-
-        new mapboxgl.Marker(el)
-          .setLngLat([incident.longitude, incident.latitude])
-          .addTo(map.current!);
-      });
-
-    } catch (e) {
-      console.error("Map load error", e);
-      setMapError(true);
-    }
-
-    return () => {
-      // Cleanup handled by mapbox usually, but good practice
-    };
-  }, [theme]);
-
-  // Update style dynamically
-  useEffect(() => {
-    if (!map.current) return;
-    map.current.setStyle(theme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11');
-  }, [theme]);
-
-  if (mapError || !TOKEN) {
-    return <SimulatedMap />;
-  }
-
-  return (
-    <div className="w-full h-full relative rounded-lg overflow-hidden shadow-inner">
-       <div ref={mapContainer} className="w-full h-full" />
-    </div>
+  return position === null ? null : (
+    <Marker position={position}>
+      <Popup>You are here</Popup>
+    </Marker>
   );
 };
 
-// Fallback for when no token is provided
-const SimulatedMap = () => {
+const MapComponent: React.FC = () => {
   const { theme } = useStore();
-  
+  const [position, setPosition] = useState<[number, number] | null>(null);
+  const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  useEffect(() => {
+    // Connect to backend
+    const newSocket = io('http://localhost:3001');
+    setSocket(newSocket);
+
+    newSocket.on('connect', () => {
+      console.log('Connected to socket server');
+    });
+
+    newSocket.on('locationUpdate', (data: { id: string; latitude: number; longitude: number }) => {
+      setOtherUsers((prev) => ({
+        ...prev,
+        [data.id]: { latitude: data.latitude, longitude: data.longitude }
+      }));
+    });
+
+    newSocket.on('userDisconnected', (id: string) => {
+      setOtherUsers((prev) => {
+        const newState = { ...prev };
+        delete newState[id];
+        return newState;
+      });
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      console.log('Geolocation is not supported by your browser');
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setPosition([latitude, longitude]);
+
+        if (socket) {
+          socket.emit('updateLocation', { latitude, longitude });
+        }
+      },
+      (err) => {
+        console.error('Error getting location', err);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [socket]);
+
+  // Default center (NYC) if no location yet
+  const center: [number, number] = position || [40.7128, -74.0060];
+
   return (
-    <div className={`w-full h-full relative overflow-hidden ${theme === 'dark' ? 'bg-slate-900' : 'bg-slate-100'}`}>
-      {/* Grid Pattern */}
-      <div className="absolute inset-0 opacity-10" 
-           style={{ 
-             backgroundImage: `radial-gradient(${theme === 'dark' ? '#ffffff' : '#000000'} 1px, transparent 1px)`, 
-             backgroundSize: '20px 20px' 
-           }} 
-      />
-      
-      {/* Mock Map Shapes */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20" stroke={theme === 'dark' ? '#334155' : '#cbd5e1'}>
-         <path d="M0 100 Q 250 50 500 150 T 1000 100" fill="none" strokeWidth="2" />
-         <path d="M100 0 Q 150 250 50 500" fill="none" strokeWidth="2" />
-         <path d="M600 0 L 650 600" fill="none" strokeWidth="2" />
-      </svg>
+    <div className="w-full h-full relative z-0">
+      <MapContainer
+        center={center}
+        zoom={13}
+        style={{ height: '100%', width: '100%' }}
+        className="z-0"
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url={theme === 'dark'
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+          }
+        />
 
-      {/* Markers */}
-      {MOCK_INCIDENTS.map((inc) => (
-        <motion.div
-            key={inc.id}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            whileHover={{ scale: 1.2 }}
-            className="absolute cursor-pointer group"
-            style={{ 
-                // Simple random positioning for the simulation based on coords
-                left: `${(Math.abs(inc.longitude) % 0.1) * 1000}%`, 
-                top: `${(Math.abs(inc.latitude) % 0.1) * 1000}%` 
-            }}
-        >
-            <div className="relative">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-safety-500 opacity-75"></span>
-                <div className={`relative inline-flex rounded-full p-2 ${inc.type === 'theft' ? 'bg-alert-500' : 'bg-safety-500'} text-white shadow-lg`}>
-                    <MapPin size={16} />
-                </div>
-            </div>
-            
-            {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-32 bg-popover text-popover-foreground text-xs p-2 rounded shadow-lg z-10 text-center border">
-                <p className="font-bold capitalize">{inc.type}</p>
-                <p className="opacity-75">{inc.description}</p>
-            </div>
-        </motion.div>
-      ))}
+        <LocationMarker position={position} />
 
-      <div className="absolute top-4 right-4 bg-background/80 backdrop-blur p-2 rounded text-xs text-muted-foreground border">
-        <AlertTriangle className="inline w-3 h-3 mr-1" />
-        Simulated Map View (No Token)
-      </div>
+        {/* Render other users */}
+        {Object.entries(otherUsers).map(([id, loc]) => (
+          <Marker key={id} position={[loc.latitude, loc.longitude]}>
+            <Popup>User: {id.slice(0, 5)}</Popup>
+          </Marker>
+        ))}
+
+        {/* Render Incidents */}
+        {MOCK_INCIDENTS.map((incident) => (
+          <Marker key={incident.id} position={[incident.latitude, incident.longitude]}>
+            <Popup>
+              <strong>{incident.type}</strong><br />
+              {incident.description}
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
     </div>
   );
-}
+};
 
 export default MapComponent;
