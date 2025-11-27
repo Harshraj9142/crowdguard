@@ -7,7 +7,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from '
 import MapComponent from './components/Map';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, AlertTriangle, Users, Award, Bell, Camera, MapPin, CheckCircle, Navigation } from 'lucide-react';
-import { MOCK_INCIDENTS, MOCK_USERS, MOCK_RESPONDERS } from './constants';
+import { MOCK_USERS, MOCK_RESPONDERS } from './constants';
 import { Incident } from './types';
 
 // --- Page Components ---
@@ -109,7 +109,25 @@ const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode, title: stri
 );
 
 const DashboardPage = () => {
-  const { incidents, upvoteIncident } = useStore();
+  const { incidents, upvoteIncident, filters, toggleFilter } = useStore();
+  const [timeFilter, setTimeFilter] = React.useState<'24h' | '7d' | 'all'>('all');
+
+  const filteredIncidents = incidents.filter(inc => {
+    const matchesType = filters[inc.type];
+    if (!matchesType) return false;
+
+    if (timeFilter === 'all') return true;
+
+    const incDate = new Date(inc.timestamp);
+    const now = new Date();
+    const diffHours = (now.getTime() - incDate.getTime()) / (1000 * 60 * 60);
+
+    if (timeFilter === '24h') return diffHours <= 24;
+    if (timeFilter === '7d') return diffHours <= 24 * 7;
+
+    return true;
+  });
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       <div className="flex-1 relative">
@@ -120,14 +138,29 @@ const DashboardPage = () => {
           <Card className="w-48 bg-background/90 backdrop-blur border-none shadow-xl">
             <CardContent className="p-3">
               <p className="text-xs font-semibold text-muted-foreground mb-2">FILTERS</p>
-              <div className="space-y-2">
-                {['Theft', 'Assault', 'Accident', 'Suspicious'].map(type => (
+              <div className="space-y-2 mb-4">
+                {['Theft', 'Assault', 'Accident', 'Suspicious', 'Harassment', 'Other'].map(type => (
                   <label key={type} className="flex items-center space-x-2 text-sm cursor-pointer hover:opacity-80">
-                    <input type="checkbox" defaultChecked className="rounded border-primary text-primary focus:ring-primary" />
+                    <input
+                      type="checkbox"
+                      checked={filters[type.toLowerCase()]}
+                      onChange={() => toggleFilter(type.toLowerCase())}
+                      className="rounded border-primary text-primary focus:ring-primary"
+                    />
                     <span>{type}</span>
                   </label>
                 ))}
               </div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">TIME RANGE</p>
+              <select
+                className="w-full text-sm border rounded p-1 bg-background"
+                value={timeFilter}
+                onChange={(e) => setTimeFilter(e.target.value as any)}
+              >
+                <option value="24h">Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="all">All Time</option>
+              </select>
             </CardContent>
           </Card>
         </div>
@@ -142,11 +175,16 @@ const DashboardPage = () => {
               </div>
             </CardHeader>
             <div className="overflow-y-auto p-0">
-              {incidents.map((inc) => (
+              {filteredIncidents.map((inc) => (
                 <div key={inc.id} className="p-4 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer">
                   <div className="flex justify-between items-start mb-1">
-                    <Badge variant={inc.type === 'theft' ? 'outline' : 'secondary'} className="capitalize">{inc.type}</Badge>
-                    <span className="text-xs text-muted-foreground">2m ago</span>
+                    <div className="flex gap-2">
+                      <Badge variant={inc.type === 'theft' ? 'outline' : 'secondary'} className="capitalize">{inc.type}</Badge>
+                      {inc.severity && inc.severity > 3 && <Badge variant="destructive">High Severity</Badge>}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(inc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
                   <p className="text-sm font-medium">{inc.description}</p>
                   <div className="flex items-center justify-between mt-2">
@@ -180,6 +218,7 @@ const ReportPage = () => {
   const [loading, setLoading] = React.useState(false);
   const [type, setType] = React.useState('suspicious');
   const [description, setDescription] = React.useState('');
+  const [severity, setSeverity] = React.useState(1);
   const [address, setAddress] = React.useState('');
   const [isFetchingAddress, setIsFetchingAddress] = React.useState(false);
 
@@ -210,6 +249,7 @@ const ReportPage = () => {
       longitude: userLocation ? userLocation[1] : -74.0060,
       description: description,
       address: address,
+      severity: severity,
       timestamp: new Date().toISOString(),
       verified: false,
       reporterId: currentUser.id,
@@ -248,6 +288,22 @@ const ReportPage = () => {
                   <option value="harassment">Harassment</option>
                   <option value="other">Infrastructure Hazard</option>
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Severity Level (1-5)</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={severity}
+                    onChange={(e) => setSeverity(parseInt(e.target.value))}
+                    className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className={`font-bold ${severity > 3 ? 'text-destructive' : 'text-primary'}`}>{severity}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">1 = Minor, 5 = Critical Emergency</p>
               </div>
 
               <div className="space-y-2">

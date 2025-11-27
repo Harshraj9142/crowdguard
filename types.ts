@@ -9,6 +9,7 @@ export interface Incident {
   verified: boolean;
   reporterId: string;
   upvotes: number;
+  severity?: number;
 }
 
 export interface User {

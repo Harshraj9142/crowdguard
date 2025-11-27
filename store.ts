@@ -16,6 +16,8 @@ interface AppState {
   setUserLocation: (location: [number, number] | null) => void;
   sosActive: boolean;
   setSosActive: (active: boolean) => void;
+  filters: Record<string, boolean>;
+  toggleFilter: (type: string) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -82,4 +84,15 @@ export const useStore = create<AppState>((set) => ({
   setUserLocation: (location) => set({ userLocation: location }),
   sosActive: false,
   setSosActive: (active) => set({ sosActive: active }),
+  filters: {
+    theft: true,
+    assault: true,
+    accident: true,
+    suspicious: true,
+    harassment: true,
+    other: true
+  },
+  toggleFilter: (type) => set((state) => ({
+    filters: { ...state.filters, [type]: !state.filters[type] }
+  })),
 }));

@@ -73,7 +73,7 @@ app.post('/api/incidents/:id/upvote', async (req, res) => {
             incident.verified = true;
         }
         await incident.save();
-        io.emit('newIncident', incident); // Re-emit to update clients
+        io.emit('incidentUpdated', incident); // Re-emit to update clients
         res.json(incident);
     } catch (error) {
         res.status(500).json({ error: 'Failed to upvote incident' });

@@ -11,6 +11,7 @@ export interface IIncident extends Document {
     verified: boolean;
     reporterId: string;
     upvotes: number;
+    severity?: number;
 }
 
 const IncidentSchema: Schema = new Schema({
@@ -23,7 +24,8 @@ const IncidentSchema: Schema = new Schema({
     timestamp: { type: Date, default: Date.now },
     verified: { type: Boolean, default: false },
     reporterId: { type: String, required: true },
-    upvotes: { type: Number, default: 0 }
+    upvotes: { type: Number, default: 0 },
+    severity: { type: Number, default: 1 }
 });
 
 export default mongoose.model<IIncident>('Incident', IncidentSchema);

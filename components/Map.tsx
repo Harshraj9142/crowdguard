@@ -39,7 +39,7 @@ const LocationMarker = ({ position }: { position: [number, number] | null }) => 
 };
 
 const MapComponent: React.FC = () => {
-  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, setUserLocation } = useStore();
+  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation } = useStore();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -76,6 +76,11 @@ const MapComponent: React.FC = () => {
     newSocket.on('newIncident', (incident) => {
       console.log('New incident received:', incident);
       receiveIncident(incident);
+    });
+
+    newSocket.on('incidentUpdated', (incident) => {
+      console.log('Incident updated:', incident);
+      updateIncident(incident);
     });
 
     return () => {
@@ -183,7 +188,7 @@ const MapComponent: React.FC = () => {
         ))}
 
         {/* Render Incidents */}
-        {incidents.map((incident) => (
+        {incidents.filter(inc => useStore.getState().filters[inc.type]).map((incident) => (
           <Marker key={incident.id} position={[incident.latitude, incident.longitude]}>
             <Popup>
               <strong>{incident.type}</strong><br />
