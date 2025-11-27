@@ -383,15 +383,16 @@ const LeaderboardPage = () => {
 // --- Main App Component ---
 
 const App = () => {
-  const { theme } = useStore();
+  const { theme, fetchIncidents } = useStore();
 
   useEffect(() => {
+    fetchIncidents();
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [theme]);
+  }, [theme, fetchIncidents]);
 
   return (
     <HashRouter>

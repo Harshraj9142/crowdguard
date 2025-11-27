@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IIncident extends Document {
+    id: string;
     type: 'theft' | 'assault' | 'harassment' | 'accident' | 'suspicious' | 'other';
     latitude: number;
     longitude: number;
@@ -12,6 +13,7 @@ export interface IIncident extends Document {
 }
 
 const IncidentSchema: Schema = new Schema({
+    id: { type: String, required: true, unique: true },
     type: { type: String, required: true },
     latitude: { type: Number, required: true },
     longitude: { type: Number, required: true },
