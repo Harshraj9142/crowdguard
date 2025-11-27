@@ -124,28 +124,42 @@ const MapComponent: React.FC = () => {
       setLoadingLocation(false);
     };
 
-    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+    const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 };
 
     navigator.geolocation.getCurrentPosition(success, error, options);
   };
 
   useEffect(() => {
-    handleLocate();
-
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setPosition([latitude, longitude]);
           setUserLocation([latitude, longitude]);
+          setLoadingLocation(false);
+          setLocationError(null);
           if (socket) {
             socket.emit('updateLocation', { latitude, longitude });
           }
         },
-        (err) => console.error(err),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        (err) => {
+          console.error('Watch position error', err);
+          // Only show error if we don't have a position yet
+          if (!position) {
+            let msg = 'Unable to retrieve your location';
+            if (err.code === 1) msg = 'Location permission denied. Please allow access.';
+            if (err.code === 2) msg = 'Location unavailable. Check GPS/Network.';
+            if (err.code === 3) msg = 'Location request timed out.';
+            setLocationError(msg);
+            setLoadingLocation(false);
+          }
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
       );
       return () => navigator.geolocation.clearWatch(watchId);
+    } else {
+      setLocationError('Geolocation is not supported by your browser');
+      setLoadingLocation(false);
     }
   }, [socket]);
 
