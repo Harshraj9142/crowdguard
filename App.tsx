@@ -307,6 +307,15 @@ const DashboardPage = () => {
                       {selectedIncident.address}
                     </div>
                   )}
+                  {selectedIncident.imageUrl && (
+                    <div className="mt-4">
+                      <img
+                        src={selectedIncident.imageUrl}
+                        alt="Incident Evidence"
+                        className="w-full h-48 object-cover rounded-lg border"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between py-2 border-y">
@@ -373,6 +382,8 @@ const ReportPage = () => {
   const [severity, setSeverity] = React.useState(1);
   const [address, setAddress] = React.useState('');
   const [isFetchingAddress, setIsFetchingAddress] = React.useState(false);
+  const [imageFile, setImageFile] = React.useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (userLocation) {
@@ -390,9 +401,33 @@ const ReportPage = () => {
     }
   }, [userLocation]);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    let imageUrl = undefined;
+    if (imageFile) {
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      try {
+        const res = await fetch('http://localhost:4000/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        imageUrl = data.imageUrl;
+      } catch (err) {
+        console.error('Failed to upload image:', err);
+      }
+    }
 
     const newIncident: Incident = {
       id: Date.now().toString(),
@@ -405,7 +440,8 @@ const ReportPage = () => {
       timestamp: new Date().toISOString(),
       verified: false,
       reporterId: currentUser.id,
-      upvotes: 0
+      upvotes: 0,
+      imageUrl: imageUrl
     };
 
     await addIncident(newIncident);
@@ -484,9 +520,21 @@ const ReportPage = () => {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Evidence (Optional)</label>
-                <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors">
-                  <Camera size={24} className="mb-2" />
-                  <span className="text-xs">Tap to upload photo/video</span>
+                <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  {previewUrl ? (
+                    <img src={previewUrl} alt="Preview" className="max-h-40 rounded object-contain" />
+                  ) : (
+                    <>
+                      <Camera size={24} className="mb-2" />
+                      <span className="text-xs">Tap to upload photo</span>
+                    </>
+                  )}
                 </div>
               </div>
 

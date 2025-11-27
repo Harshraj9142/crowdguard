@@ -25,7 +25,8 @@ const IncidentSchema: Schema = new Schema({
     verified: { type: Boolean, default: false },
     reporterId: { type: String, required: true },
     upvotes: { type: Number, default: 0 },
-    severity: { type: Number, default: 1 }
+    severity: { type: Number, default: 1 },
+    imageUrl: { type: String }
 });
 
 export default mongoose.model<IIncident>('Incident', IncidentSchema);

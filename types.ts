@@ -10,6 +10,7 @@ export interface Incident {
   reporterId: string;
   upvotes: number;
   severity?: number;
+  imageUrl?: string;
 }
 
 export interface Comment {

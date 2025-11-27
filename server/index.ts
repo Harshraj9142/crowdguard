@@ -105,6 +105,43 @@ app.post('/api/incidents/:id/comments', async (req, res) => {
     }
 });
 
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Multer Configuration
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ storage });
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadDir));
+
+app.post('/api/upload', upload.single('image'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        const imageUrl = `http://localhost:4000/uploads/${req.file.filename}`;
+        res.json({ imageUrl });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to upload image' });
+    }
+});
+
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
