@@ -620,6 +620,12 @@ const SOSPage = () => {
 };
 
 const LeaderboardPage = () => {
+  const { leaderboardUsers, fetchLeaderboard } = useStore();
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, []);
+
   return (
     <div className="container max-w-2xl py-12 px-4">
       <div className="text-center mb-10">
@@ -628,7 +634,7 @@ const LeaderboardPage = () => {
       </div>
 
       <div className="space-y-4">
-        {MOCK_USERS.map((user, index) => (
+        {leaderboardUsers.map((user, index) => (
           <motion.div
             key={user.id}
             initial={{ x: -20, opacity: 0 }}
@@ -638,7 +644,7 @@ const LeaderboardPage = () => {
             <Card className={`border-none shadow-md ${index === 0 ? 'bg-gradient-to-r from-alert-500/10 to-transparent border border-alert-500/50' : ''}`}>
               <div className="flex items-center p-4">
                 <div className="w-8 font-bold text-lg text-muted-foreground">#{user.rank}</div>
-                <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full border-2 border-background shadow-sm mr-4" />
+                <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} alt={user.name} className="w-12 h-12 rounded-full border-2 border-background shadow-sm mr-4" />
                 <div className="flex-1">
                   <h3 className="font-bold">{user.name}</h3>
                   <div className="flex gap-1 mt-1">

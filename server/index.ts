@@ -5,6 +5,8 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Incident from './models/Incident';
+import User from './models/User';
+import Comment from './models/Comment';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -31,7 +33,47 @@ const io = new Server(server, {
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crowdguard';
 mongoose.connect(MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB'))
+    .then(async () => {
+        console.log('Connected to MongoDB');
+
+        // Seed Users if empty
+        try {
+            const count = await User.countDocuments();
+            if (count === 0) {
+                console.log('Seeding initial users...');
+                const mockUsers = [
+                    {
+                        id: 'u1',
+                        name: 'Alex Chen',
+                        rank: 1,
+                        points: 2450,
+                        badges: ['Guardian', 'First Responder', 'Top Reporter'],
+                        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex'
+                    },
+                    {
+                        id: 'u2',
+                        name: 'Sarah Jones',
+                        rank: 2,
+                        points: 1980,
+                        badges: ['Scout', 'Helper'],
+                        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah'
+                    },
+                    {
+                        id: 'u3',
+                        name: 'Mike Ross',
+                        rank: 3,
+                        points: 1850,
+                        badges: ['Watcher'],
+                        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mike'
+                    }
+                ];
+                await User.insertMany(mockUsers);
+                console.log('Seeding complete.');
+            }
+        } catch (err) {
+            console.error('Seeding error:', err);
+        }
+    })
     .catch(err => console.error('MongoDB connection error:', err));
 
 interface LocationData {
@@ -84,8 +126,6 @@ app.post('/api/incidents/:id/upvote', async (req, res) => {
         res.status(500).json({ error: 'Failed to upvote incident' });
     }
 });
-
-import Comment from './models/Comment';
 
 app.get('/api/incidents/:id/comments', async (req, res) => {
     try {
@@ -143,6 +183,34 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
         res.json({ imageUrl });
     } catch (error) {
         res.status(500).json({ error: 'Failed to upload image' });
+    }
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        const users = await User.find().sort({ points: -1 }).limit(10);
+        // Assign ranks
+        const rankedUsers = users.map((user, index) => ({
+            ...user.toObject(),
+            rank: index + 1
+        }));
+        res.json(rankedUsers);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch leaderboard' });
+    }
+});
+
+app.post('/api/users', async (req, res) => {
+    try {
+        const { id, name, avatar } = req.body;
+        let user = await User.findOne({ id });
+        if (!user) {
+            user = new User({ id, name, avatar, points: 0, badges: ['Newcomer'] });
+            await user.save();
+        }
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to create/fetch user' });
     }
 });
 

@@ -24,9 +24,12 @@ interface AppState {
   receiveComment: (comment: Comment) => void;
   selectedIncidentId: string | null;
   selectIncident: (id: string | null) => void;
+  leaderboardUsers: User[];
+  fetchLeaderboard: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set) => ({
+  // ... (keep existing initial state)
   theme: 'dark',
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'light' ? 'dark' : 'light';
@@ -144,5 +147,15 @@ export const useStore = create<AppState>((set) => ({
     });
   },
   selectedIncidentId: null,
-  selectIncident: (id) => set({ selectedIncidentId: id })
+  selectIncident: (id) => set({ selectedIncidentId: id }),
+  leaderboardUsers: [],
+  fetchLeaderboard: async () => {
+    try {
+      const res = await fetch('http://localhost:4000/api/leaderboard');
+      const data = await res.json();
+      set({ leaderboardUsers: data });
+    } catch (error) {
+      console.error('Failed to fetch leaderboard:', error);
+    }
+  }
 }));
