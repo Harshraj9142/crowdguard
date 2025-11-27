@@ -180,6 +180,24 @@ const ReportPage = () => {
   const [loading, setLoading] = React.useState(false);
   const [type, setType] = React.useState('suspicious');
   const [description, setDescription] = React.useState('');
+  const [address, setAddress] = React.useState('');
+  const [isFetchingAddress, setIsFetchingAddress] = React.useState(false);
+
+  React.useEffect(() => {
+    if (userLocation) {
+      setIsFetchingAddress(true);
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLocation[0]}&lon=${userLocation[1]}`)
+        .then(res => res.json())
+        .then(data => {
+          setAddress(data.display_name || '');
+          setIsFetchingAddress(false);
+        })
+        .catch(err => {
+          console.error('Failed to fetch address:', err);
+          setIsFetchingAddress(false);
+        });
+    }
+  }, [userLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,6 +209,7 @@ const ReportPage = () => {
       latitude: userLocation ? userLocation[0] : 40.7128,
       longitude: userLocation ? userLocation[1] : -74.0060,
       description: description,
+      address: address,
       timestamp: new Date().toISOString(),
       verified: false,
       reporterId: currentUser.id,
@@ -234,9 +253,14 @@ const ReportPage = () => {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Location</label>
                 <div className="flex gap-2">
-                  <Input placeholder="Detecting location..." value={userLocation ? `${userLocation[0].toFixed(4)}, ${userLocation[1].toFixed(4)}` : "Detecting..."} readOnly />
+                  <Input
+                    placeholder="Detecting location..."
+                    value={isFetchingAddress ? "Fetching address..." : (address || (userLocation ? `${userLocation[0].toFixed(4)}, ${userLocation[1].toFixed(4)}` : "Detecting..."))}
+                    readOnly
+                  />
                   <Button type="button" variant="outline" size="icon"><Navigation size={18} /></Button>
                 </div>
+                {address && <p className="text-xs text-muted-foreground mt-1">{address}</p>}
               </div>
 
               <div className="space-y-2">
@@ -380,10 +404,8 @@ const LeaderboardPage = () => {
   );
 };
 
-// --- Main App Component ---
-
 const App = () => {
-  const { theme, fetchIncidents } = useStore();
+  const { theme, fetchIncidents, setUserLocation } = useStore();
 
   useEffect(() => {
     fetchIncidents();
@@ -392,7 +414,24 @@ const App = () => {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [theme, fetchIncidents]);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+        },
+        (err) => console.error('Error getting location:', err)
+      );
+
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+        },
+        (err) => console.error('Error watching location:', err)
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [theme, fetchIncidents, setUserLocation]);
 
   return (
     <HashRouter>

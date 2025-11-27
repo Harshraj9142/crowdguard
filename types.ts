@@ -4,6 +4,7 @@ export interface Incident {
   latitude: number;
   longitude: number;
   description: string;
+  address?: string;
   timestamp: string;
   verified: boolean;
   reporterId: string;
