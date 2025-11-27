@@ -5,6 +5,11 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Incident from './models/Incident';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -106,7 +111,6 @@ app.post('/api/incidents/:id/comments', async (req, res) => {
 });
 
 import multer from 'multer';
-import path from 'path';
 import fs from 'fs';
 
 // Ensure uploads directory exists
