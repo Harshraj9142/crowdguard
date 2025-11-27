@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Incident, User, Comment } from './types';
+import { Incident, User, Comment, NewsItem } from './types';
 import { MOCK_INCIDENTS, MOCK_USERS } from './constants';
 
 interface AppState {
@@ -26,10 +26,11 @@ interface AppState {
   selectIncident: (id: string | null) => void;
   leaderboardUsers: User[];
   fetchLeaderboard: () => Promise<void>;
+  news: NewsItem[];
+  fetchNews: (latitude?: number, longitude?: number) => Promise<void>;
 }
 
 export const useStore = create<AppState>((set) => ({
-  // ... (keep existing initial state)
   theme: 'dark',
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'light' ? 'dark' : 'light';
@@ -157,5 +158,50 @@ export const useStore = create<AppState>((set) => ({
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error);
     }
+  },
+  news: [],
+  fetchNews: async (lat, lon) => {
+    // In a real application, you would use a service like NewsAPI.org
+    // const API_KEY = 'YOUR_API_KEY';
+    // const url = `https://newsapi.org/v2/everything?q=safety&lat=${lat}&lon=${lon}&apiKey=${API_KEY}`;
+
+    // Mock implementation for demo purposes
+    // Simulating API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    const mockNews: NewsItem[] = [
+      {
+        title: "Police Increase Patrols in Downtown Area Following Recent Reports",
+        description: "Local law enforcement has announced a 20% increase in foot patrols in the downtown district after a series of theft reports.",
+        source: "City Gazette",
+        url: "#",
+        publishedAt: new Date().toISOString(),
+        imageUrl: "https://images.unsplash.com/photo-1520697830682-bbb6e85e2b0b?auto=format&fit=crop&q=80&w=300"
+      },
+      {
+        title: "Community Watch Program Launches New Mobile App Integration",
+        description: "The neighborhood watch has partnered with CrowdGuard to streamline incident reporting and improve response times.",
+        source: "Daily News",
+        url: "#",
+        publishedAt: new Date(Date.now() - 86400000).toISOString(),
+        imageUrl: "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?auto=format&fit=crop&q=80&w=300"
+      },
+      {
+        title: "Traffic Advisory: Main St. Construction to Cause Delays",
+        description: "Major roadwork on Main St. begins this Monday. Commuters are advised to seek alternate routes.",
+        source: "Traffic Alert",
+        url: "#",
+        publishedAt: new Date(Date.now() - 172800000).toISOString()
+      },
+      {
+        title: "Fire Safety Workshop Scheduled for Next Weekend",
+        description: "The local fire department is hosting a free workshop on home fire safety and emergency preparedness.",
+        source: "Community Bulletin",
+        url: "#",
+        publishedAt: new Date(Date.now() - 259200000).toISOString(),
+        imageUrl: "https://images.unsplash.com/photo-1599233669146-511244e83793?auto=format&fit=crop&q=80&w=300"
+      }
+    ];
+    set({ news: mockNews });
   }
 }));

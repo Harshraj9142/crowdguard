@@ -15,6 +15,7 @@ export const Navbar = () => {
     { name: 'Dashboard', path: '/dashboard', icon: <MapIcon size={18} /> },
     { name: 'Report', path: '/report', icon: <AlertCircle size={18} /> },
     { name: 'Leaderboard', path: '/leaderboard', icon: <BarChart2 size={18} /> },
+    { name: 'News', path: '/news', icon: <Home size={18} /> },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -39,9 +40,8 @@ export const Navbar = () => {
             <Link
               key={link.path}
               to={link.path}
-              className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 ${
-                isActive(link.path) ? 'text-primary font-bold' : 'text-muted-foreground'
-              }`}
+              className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-2 ${isActive(link.path) ? 'text-primary font-bold' : 'text-muted-foreground'
+                }`}
             >
               {link.icon}
               {link.name}
@@ -83,9 +83,8 @@ export const Navbar = () => {
                   key={link.path}
                   to={link.path}
                   onClick={() => setIsOpen(false)}
-                  className={`flex items-center space-x-2 text-sm font-medium ${
-                    isActive(link.path) ? 'text-primary' : 'text-muted-foreground'
-                  }`}
+                  className={`flex items-center space-x-2 text-sm font-medium ${isActive(link.path) ? 'text-primary' : 'text-muted-foreground'
+                    }`}
                 >
                   {link.icon}
                   <span>{link.name}</span>
@@ -106,69 +105,69 @@ export const Navbar = () => {
 };
 
 export const AssistantFab = () => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [query, setQuery] = useState('');
-    const [response, setResponse] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [response, setResponse] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-    const handleAsk = async () => {
-        if(!query.trim()) return;
-        setLoading(true);
-        const ans = await askSafetyAssistant(query);
-        setResponse(ans);
-        setLoading(false);
-    };
+  const handleAsk = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    const ans = await askSafetyAssistant(query);
+    setResponse(ans);
+    setLoading(false);
+  };
 
-    return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end space-y-4">
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="w-80 rounded-xl border bg-card p-4 shadow-2xl"
-                    >
-                        <div className="mb-2 flex items-center justify-between">
-                            <h4 className="font-semibold flex items-center gap-2"><Shield className="w-4 h-4 text-trust-500"/> Safety Assistant</h4>
-                            <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)}><X className="w-4 h-4"/></Button>
-                        </div>
-                        <div className="space-y-3">
-                            {response ? (
-                                <div className="rounded bg-muted p-3 text-sm">
-                                    {response}
-                                    <button onClick={() => {setResponse(null); setQuery('')}} className="block mt-2 text-xs text-primary underline">Ask another</button>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="text-xs text-muted-foreground">Ask AI about safety protocols, emergency numbers, or what to do in a crisis.</p>
-                                    <div className="flex gap-2">
-                                        <input
-                                            className="flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-                                            placeholder="E.g., What if I see a fire?"
-                                            value={query}
-                                            onChange={(e) => setQuery(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-                                        />
-                                        <Button size="icon" onClick={handleAsk} disabled={loading}>
-                                            {loading ? <span className="animate-spin">⌛</span> : <Mic size={16}/>}
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            <Button
-                size="lg"
-                className="h-14 w-14 rounded-full shadow-lg bg-trust-500 hover:bg-trust-600 text-white"
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <Shield size={28} />
-            </Button>
-        </div>
-    )
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end space-y-4">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="w-80 rounded-xl border bg-card p-4 shadow-2xl"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="font-semibold flex items-center gap-2"><Shield className="w-4 h-4 text-trust-500" /> Safety Assistant</h4>
+              <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)}><X className="w-4 h-4" /></Button>
+            </div>
+            <div className="space-y-3">
+              {response ? (
+                <div className="rounded bg-muted p-3 text-sm">
+                  {response}
+                  <button onClick={() => { setResponse(null); setQuery('') }} className="block mt-2 text-xs text-primary underline">Ask another</button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Ask AI about safety protocols, emergency numbers, or what to do in a crisis.</p>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                      placeholder="E.g., What if I see a fire?"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
+                    />
+                    <Button size="icon" onClick={handleAsk} disabled={loading}>
+                      {loading ? <span className="animate-spin">⌛</span> : <Mic size={16} />}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <Button
+        size="lg"
+        className="h-14 w-14 rounded-full shadow-lg bg-trust-500 hover:bg-trust-600 text-white"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Shield size={28} />
+      </Button>
+    </div>
+  )
 }
 
 export const Footer = () => (
@@ -181,7 +180,7 @@ export const Footer = () => (
         </p>
       </div>
       <p className="text-center text-sm text-muted-foreground">
-         &copy; 2024 CrowdGuard. All rights reserved.
+        &copy; 2024 CrowdGuard. All rights reserved.
       </p>
     </div>
   </footer>

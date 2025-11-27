@@ -45,10 +45,20 @@ export interface SOSResponder {
   eta: string;
 }
 
+export interface NewsItem {
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  imageUrl?: string;
+}
+
 export enum AppRoute {
   HOME = '/',
   DASHBOARD = '/dashboard',
   REPORT = '/report',
   SOS = '/sos',
-  LEADERBOARD = '/leaderboard'
+  LEADERBOARD = '/leaderboard',
+  NEWS = '/news'
 }

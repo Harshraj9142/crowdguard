@@ -666,6 +666,74 @@ const LeaderboardPage = () => {
   );
 };
 
+const NewsPage = () => {
+  const { news, fetchNews, userLocation } = useStore();
+  const [loading, setLoading] = React.useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      await fetchNews(userLocation?.[0], userLocation?.[1]);
+      setLoading(false);
+    };
+    load();
+  }, [fetchNews, userLocation]);
+
+  return (
+    <div className="container max-w-4xl py-12 px-4">
+      <div className="text-center mb-10">
+        <h2 className="text-3xl font-bold mb-2">Local Safety News</h2>
+        <p className="text-muted-foreground">Stay informed about safety updates in your area.</p>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-6">
+          {news.map((item, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <Card className="h-full hover:shadow-lg transition-shadow overflow-hidden flex flex-col">
+                {item.imageUrl && (
+                  <div className="h-48 overflow-hidden">
+                    <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform hover:scale-105 duration-500" />
+                  </div>
+                )}
+                <CardHeader>
+                  <div className="flex justify-between items-start gap-4">
+                    <CardTitle className="text-lg leading-tight hover:text-primary transition-colors">
+                      <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                    <span className="font-semibold text-primary">{item.source}</span>
+                    <span>•</span>
+                    <span>{new Date(item.publishedAt).toLocaleDateString()}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>
+                </CardContent>
+                <div className="p-4 pt-0 mt-auto">
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">Read Full Story</a>
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const App = () => {
   const { theme, fetchIncidents, setUserLocation } = useStore();
 
@@ -706,6 +774,7 @@ const App = () => {
             <Route path="/report" element={<ReportPage />} />
             <Route path="/sos" element={<SOSPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/news" element={<NewsPage />} />
           </Routes>
         </main>
         <Footer />
