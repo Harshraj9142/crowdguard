@@ -5,22 +5,48 @@ import L from 'leaflet';
 import { io, Socket } from 'socket.io-client';
 import { useStore } from '../store';
 import { Loader2, Navigation, AlertTriangle } from 'lucide-react';
-
-// Fix for default marker icon in Leaflet with Webpack/Vite
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 // REPLACE WITH YOUR TOMTOM API KEY
 const TOMTOM_API_KEY = 'TadNELv6Zo5VRjQYZLh6IiwcsFXqdp5d';
 
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
+// Custom Icons
+const createIncidentIcon = (type: string) => {
+  const iconHtml = renderToStaticMarkup(
+    <div className="marker-pin">
+      <AlertTriangle size={20} color="white" />
+    </div>
+  );
+
+  return L.divIcon({
+    className: 'custom-div-icon',
+    html: iconHtml,
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
+  });
+};
+
+const userLocationIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `
+    <div class="user-location-marker">
+      <div class="user-location-pulse"></div>
+    </div>
+  `,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10]
 });
 
-L.Marker.prototype.options.icon = DefaultIcon;
+const otherUserIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `
+    <div class="user-location-marker" style="background-color: #94a3b8;">
+    </div>
+  `,
+  iconSize: [16, 16],
+  iconAnchor: [8, 8]
+});
 
 // Component to update map center when user location changes
 const LocationMarker = ({ position }: { position: [number, number] | null }) => {
@@ -32,14 +58,14 @@ const LocationMarker = ({ position }: { position: [number, number] | null }) => 
   }, [position, map]);
 
   return position === null ? null : (
-    <Marker position={position}>
+    <Marker position={position} icon={userLocationIcon}>
       <Popup>You are here</Popup>
     </Marker>
   );
 };
 
 const MapComponent: React.FC = () => {
-  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation, receiveComment } = useStore();
+  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation, receiveComment, filters } = useStore();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -201,14 +227,14 @@ const MapComponent: React.FC = () => {
 
         {/* Render other users */}
         {Object.entries(otherUsers).map(([id, loc]: [string, { latitude: number; longitude: number }]) => (
-          <Marker key={id} position={[loc.latitude, loc.longitude]}>
+          <Marker key={id} position={[loc.latitude, loc.longitude]} icon={otherUserIcon}>
             <Popup>User: {id.slice(0, 5)}</Popup>
           </Marker>
         ))}
 
         {/* Render Incidents */}
-        {incidents.filter(inc => useStore.getState().filters[inc.type]).map((incident) => (
-          <Marker key={incident.id} position={[incident.latitude, incident.longitude]}>
+        {incidents.filter(inc => filters[inc.type]).map((incident) => (
+          <Marker key={incident.id} position={[incident.latitude, incident.longitude]} icon={createIncidentIcon(incident.type)}>
             <Popup>
               <div className="min-w-[150px]">
                 <strong className="capitalize text-lg">{incident.type}</strong>
