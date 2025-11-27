@@ -39,7 +39,7 @@ const LocationMarker = ({ position }: { position: [number, number] | null }) => 
 };
 
 const MapComponent: React.FC = () => {
-  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation } = useStore();
+  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation, receiveComment } = useStore();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -81,6 +81,11 @@ const MapComponent: React.FC = () => {
     newSocket.on('incidentUpdated', (incident) => {
       console.log('Incident updated:', incident);
       updateIncident(incident);
+    });
+
+    newSocket.on('newComment', (comment) => {
+      console.log('New comment received:', comment);
+      receiveComment(comment);
     });
 
     return () => {
@@ -191,8 +196,16 @@ const MapComponent: React.FC = () => {
         {incidents.filter(inc => useStore.getState().filters[inc.type]).map((incident) => (
           <Marker key={incident.id} position={[incident.latitude, incident.longitude]}>
             <Popup>
-              <strong>{incident.type}</strong><br />
-              {incident.description}
+              <div className="min-w-[150px]">
+                <strong className="capitalize text-lg">{incident.type}</strong>
+                <p className="text-sm my-1">{incident.description}</p>
+                <button
+                  onClick={() => useStore.getState().selectIncident(incident.id)}
+                  className="mt-2 text-xs bg-primary text-primary-foreground px-2 py-1 rounded w-full hover:bg-primary/90"
+                >
+                  View Details
+                </button>
+              </div>
             </Popup>
           </Marker>
         ))}

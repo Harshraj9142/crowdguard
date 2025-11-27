@@ -12,6 +12,15 @@ export interface Incident {
   severity?: number;
 }
 
+export interface Comment {
+  id: string;
+  incidentId: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface User {
   id: string;
   name: string;

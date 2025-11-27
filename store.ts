@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Incident, User } from './types';
+import { Incident, User, Comment } from './types';
 import { MOCK_INCIDENTS, MOCK_USERS } from './constants';
 
 interface AppState {
@@ -18,6 +18,12 @@ interface AppState {
   setSosActive: (active: boolean) => void;
   filters: Record<string, boolean>;
   toggleFilter: (type: string) => void;
+  comments: Record<string, Comment[]>;
+  fetchComments: (incidentId: string) => Promise<void>;
+  addComment: (comment: Comment) => Promise<void>;
+  receiveComment: (comment: Comment) => void;
+  selectedIncidentId: string | null;
+  selectIncident: (id: string | null) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -95,4 +101,48 @@ export const useStore = create<AppState>((set) => ({
   toggleFilter: (type) => set((state) => ({
     filters: { ...state.filters, [type]: !state.filters[type] }
   })),
+  comments: {},
+  fetchComments: async (incidentId) => {
+    try {
+      const res = await fetch(`http://localhost:4000/api/incidents/${incidentId}/comments`);
+      const data = await res.json();
+      set((state) => ({
+        comments: { ...state.comments, [incidentId]: data }
+      }));
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
+    }
+  },
+  addComment: async (comment) => {
+    // Optimistic update
+    set((state) => ({
+      comments: {
+        ...state.comments,
+        [comment.incidentId]: [comment, ...(state.comments[comment.incidentId] || [])]
+      }
+    }));
+    try {
+      await fetch(`http://localhost:4000/api/incidents/${comment.incidentId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(comment)
+      });
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+    }
+  },
+  receiveComment: (comment) => {
+    set((state) => {
+      const existing = state.comments[comment.incidentId] || [];
+      if (existing.some(c => c.id === comment.id)) return state;
+      return {
+        comments: {
+          ...state.comments,
+          [comment.incidentId]: [comment, ...existing]
+        }
+      };
+    });
+  },
+  selectedIncidentId: null,
+  selectIncident: (id) => set({ selectedIncidentId: id })
 }));

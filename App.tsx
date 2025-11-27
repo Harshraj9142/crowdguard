@@ -6,7 +6,7 @@ import { Navbar, Footer, AssistantFab } from './components/Layout';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from './components/ui/common';
 import MapComponent from './components/Map';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, AlertTriangle, Users, Award, Bell, Camera, MapPin, CheckCircle, Navigation } from 'lucide-react';
+import { Shield, AlertTriangle, Users, Award, Bell, Camera, MapPin, CheckCircle, Navigation, MessageSquare, X, Search } from 'lucide-react';
 import { MOCK_USERS, MOCK_RESPONDERS } from './constants';
 import { Incident } from './types';
 
@@ -109,104 +109,256 @@ const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode, title: stri
 );
 
 const DashboardPage = () => {
-  const { incidents, upvoteIncident, filters, toggleFilter } = useStore();
+  const { incidents, upvoteIncident, filters, toggleFilter, selectedIncidentId, selectIncident, comments, fetchComments, addComment, currentUser } = useStore();
   const [timeFilter, setTimeFilter] = React.useState<'24h' | '7d' | 'all'>('all');
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [newComment, setNewComment] = React.useState('');
+
+  const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
+  const incidentComments = selectedIncidentId ? (comments[selectedIncidentId] || []) : [];
+
+  React.useEffect(() => {
+    if (selectedIncidentId) {
+      fetchComments(selectedIncidentId);
+    }
+  }, [selectedIncidentId]);
 
   const filteredIncidents = incidents.filter(inc => {
     const matchesType = filters[inc.type];
     if (!matchesType) return false;
 
-    if (timeFilter === 'all') return true;
+    if (timeFilter !== 'all') {
+      const incDate = new Date(inc.timestamp);
+      const now = new Date();
+      const diffHours = (now.getTime() - incDate.getTime()) / (1000 * 60 * 60);
+      if (timeFilter === '24h' && diffHours > 24) return false;
+      if (timeFilter === '7d' && diffHours > 24 * 7) return false;
+    }
 
-    const incDate = new Date(inc.timestamp);
-    const now = new Date();
-    const diffHours = (now.getTime() - incDate.getTime()) / (1000 * 60 * 60);
-
-    if (timeFilter === '24h') return diffHours <= 24;
-    if (timeFilter === '7d') return diffHours <= 24 * 7;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch =
+        inc.description.toLowerCase().includes(query) ||
+        (inc.address && inc.address.toLowerCase().includes(query)) ||
+        inc.type.toLowerCase().includes(query);
+      if (!matchesSearch) return false;
+    }
 
     return true;
   });
+
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedIncidentId || !newComment.trim()) return;
+
+    await addComment({
+      id: Date.now().toString(),
+      incidentId: selectedIncidentId,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      text: newComment,
+      timestamp: new Date().toISOString()
+    });
+    setNewComment('');
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       <div className="flex-1 relative">
         <MapComponent />
 
-        {/* Overlay Filters */}
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-          <Card className="w-48 bg-background/90 backdrop-blur border-none shadow-xl">
-            <CardContent className="p-3">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">FILTERS</p>
-              <div className="space-y-2 mb-4">
-                {['Theft', 'Assault', 'Accident', 'Suspicious', 'Harassment', 'Other'].map(type => (
-                  <label key={type} className="flex items-center space-x-2 text-sm cursor-pointer hover:opacity-80">
-                    <input
-                      type="checkbox"
-                      checked={filters[type.toLowerCase()]}
-                      onChange={() => toggleFilter(type.toLowerCase())}
-                      className="rounded border-primary text-primary focus:ring-primary"
-                    />
-                    <span>{type}</span>
-                  </label>
-                ))}
+        {/* Overlay Filters & Search */}
+        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 w-64">
+          <Card className="bg-background/90 backdrop-blur border-none shadow-xl">
+            <CardContent className="p-3 space-y-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search alerts..."
+                  className="pl-8 h-9 text-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">TIME RANGE</p>
-              <select
-                className="w-full text-sm border rounded p-1 bg-background"
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value as any)}
-              >
-                <option value="24h">Last 24 Hours</option>
-                <option value="7d">Last 7 Days</option>
-                <option value="all">All Time</option>
-              </select>
+
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2">FILTERS</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Theft', 'Assault', 'Accident', 'Suspicious', 'Harassment', 'Other'].map(type => (
+                    <label key={type} className="flex items-center space-x-2 text-xs cursor-pointer hover:opacity-80">
+                      <input
+                        type="checkbox"
+                        checked={filters[type.toLowerCase()]}
+                        onChange={() => toggleFilter(type.toLowerCase())}
+                        className="rounded border-primary text-primary focus:ring-primary"
+                      />
+                      <span>{type}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2">TIME RANGE</p>
+                <select
+                  className="w-full text-sm border rounded p-1 bg-background"
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value as any)}
+                >
+                  <option value="24h">Last 24 Hours</option>
+                  <option value="7d">Last 7 Days</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Live Feed Slide-in (Mobile hidden or collapsible) */}
-        <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:top-4 md:bottom-auto md:w-80 z-10">
-          <Card className="bg-background/95 backdrop-blur shadow-2xl max-h-[40vh] md:max-h-[60vh] overflow-hidden flex flex-col">
-            <CardHeader className="p-4 border-b">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-sm">Nearby Alerts</CardTitle>
-                <Badge variant="destructive" className="animate-pulse">LIVE</Badge>
-              </div>
-            </CardHeader>
-            <div className="overflow-y-auto p-0">
-              {filteredIncidents.map((inc) => (
-                <div key={inc.id} className="p-4 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer">
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="flex gap-2">
-                      <Badge variant={inc.type === 'theft' ? 'outline' : 'secondary'} className="capitalize">{inc.type}</Badge>
-                      {inc.severity && inc.severity > 3 && <Badge variant="destructive">High Severity</Badge>}
+        {!selectedIncident && (
+          <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:top-4 md:bottom-auto md:w-80 z-10">
+            <Card className="bg-background/95 backdrop-blur shadow-2xl max-h-[40vh] md:max-h-[60vh] overflow-hidden flex flex-col">
+              <CardHeader className="p-4 border-b">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-sm">Nearby Alerts</CardTitle>
+                  <Badge variant="destructive" className="animate-pulse">LIVE</Badge>
+                </div>
+              </CardHeader>
+              <div className="overflow-y-auto p-0">
+                {filteredIncidents.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    No incidents found matching your criteria.
+                  </div>
+                ) : (
+                  filteredIncidents.map((inc) => (
+                    <div
+                      key={inc.id}
+                      className="p-4 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => selectIncident(inc.id)}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="flex gap-2">
+                          <Badge variant={inc.type === 'theft' ? 'outline' : 'secondary'} className="capitalize">{inc.type}</Badge>
+                          {inc.severity && inc.severity > 3 && <Badge variant="destructive">High Severity</Badge>}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(inc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium line-clamp-2">{inc.description}</p>
+                      {inc.address && <p className="text-xs text-muted-foreground mt-1 truncate"><MapPin size={10} className="inline mr-1" />{inc.address}</p>}
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <CheckCircle size={12} className={inc.verified ? "text-eco-500" : "text-muted-foreground"} />
+                          <span>{inc.upvotes} verifications</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            upvoteIncident(inc.id);
+                          }}
+                          className="text-xs bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors"
+                        >
+                          Verify
+                        </button>
+                      </div>
                     </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Selected Incident Details */}
+        <AnimatePresence>
+          {selectedIncident && (
+            <motion.div
+              initial={{ x: 300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 300, opacity: 0 }}
+              className="absolute top-4 right-4 bottom-4 w-full md:w-96 bg-background/95 backdrop-blur shadow-2xl z-20 rounded-xl overflow-hidden flex flex-col border"
+            >
+              <div className="p-4 border-b flex justify-between items-center bg-muted/30">
+                <h3 className="font-bold text-lg capitalize flex items-center gap-2">
+                  {selectedIncident.type}
+                  {selectedIncident.verified && <CheckCircle size={16} className="text-eco-500" />}
+                </h3>
+                <Button variant="ghost" size="icon" onClick={() => selectIncident(null)}>
+                  <X size={18} />
+                </Button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant={selectedIncident.severity && selectedIncident.severity > 3 ? "destructive" : "secondary"}>
+                      Severity: {selectedIncident.severity || 1}/5
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(inc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(selectedIncident.timestamp).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-sm font-medium">{inc.description}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <CheckCircle size={12} className={inc.verified ? "text-eco-500" : "text-muted-foreground"} />
-                      <span>{inc.upvotes} verifications</span>
+                  <p className="text-sm leading-relaxed">{selectedIncident.description}</p>
+                  {selectedIncident.address && (
+                    <div className="mt-2 flex items-start gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                      <MapPin size={16} className="mt-0.5 shrink-0" />
+                      {selectedIncident.address}
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        upvoteIncident(inc.id);
-                      }}
-                      className="text-xs bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors"
-                    >
-                      Verify
-                    </button>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+
+                <div className="flex items-center justify-between py-2 border-y">
+                  <div className="text-sm font-medium">
+                    {selectedIncident.upvotes} Community Verifications
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => upvoteIncident(selectedIncident.id)}
+                    className="gap-2"
+                  >
+                    <CheckCircle size={14} /> Verify Report
+                  </Button>
+                </div>
+
+                {/* Comments Section */}
+                <div>
+                  <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <MessageSquare size={14} /> Comments ({incidentComments.length})
+                  </h4>
+                  <div className="space-y-3 mb-4">
+                    {incidentComments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">No comments yet. Be the first to add one.</p>
+                    ) : (
+                      incidentComments.map(comment => (
+                        <div key={comment.id} className="bg-muted/30 p-3 rounded-lg text-sm">
+                          <div className="flex justify-between items-baseline mb-1">
+                            <span className="font-semibold text-xs">{comment.userName}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground">{comment.text}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <form onSubmit={handlePostComment} className="flex gap-2">
+                    <Input
+                      placeholder="Add a comment..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      className="text-sm"
+                    />
+                    <Button type="submit" size="sm" disabled={!newComment.trim()}>Post</Button>
+                  </form>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -80,6 +80,31 @@ app.post('/api/incidents/:id/upvote', async (req, res) => {
     }
 });
 
+import Comment from './models/Comment';
+
+app.get('/api/incidents/:id/comments', async (req, res) => {
+    try {
+        const comments = await Comment.find({ incidentId: req.params.id }).sort({ timestamp: -1 });
+        res.json(comments);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch comments' });
+    }
+});
+
+app.post('/api/incidents/:id/comments', async (req, res) => {
+    try {
+        const newComment = new Comment({
+            ...req.body,
+            incidentId: req.params.id
+        });
+        await newComment.save();
+        io.emit('newComment', newComment);
+        res.status(201).json(newComment);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
