@@ -183,7 +183,11 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 
         // Gemini Analysis
         let analysis = null;
-        if (process.env.GEMINI_API_KEY) {
+
+        if (!process.env.GEMINI_API_KEY) {
+            console.warn("GEMINI_API_KEY is missing. Using mock analysis.");
+            analysis = "Analysis unavailable (Missing API Key). Please add GEMINI_API_KEY to .env for real image analysis.";
+        } else {
             try {
                 const { GoogleGenerativeAI } = await import("@google/generative-ai");
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
