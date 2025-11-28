@@ -382,8 +382,12 @@ const ReportPage = () => {
   const [severity, setSeverity] = React.useState(1);
   const [address, setAddress] = React.useState('');
   const [isFetchingAddress, setIsFetchingAddress] = React.useState(false);
+
   const [imageFile, setImageFile] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = React.useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
+  const [analysisResult, setAnalysisResult] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (userLocation) {
@@ -401,11 +405,38 @@ const ReportPage = () => {
     }
   }, [userLocation]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImageFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+      setUploadedImageUrl(null);
+      setAnalysisResult(null);
+
+      // Upload and Analyze immediately
+      setIsAnalyzing(true);
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const res = await fetch('http://localhost:4000/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        setUploadedImageUrl(data.imageUrl);
+
+        if (data.analysis) {
+          setAnalysisResult(data.analysis);
+          if (!data.analysis.toLowerCase().includes("not a safety incident")) {
+            setDescription(data.analysis);
+          }
+        }
+      } catch (err) {
+        console.error("Upload failed", err);
+      } finally {
+        setIsAnalyzing(false);
+      }
     }
   };
 
@@ -413,8 +444,8 @@ const ReportPage = () => {
     e.preventDefault();
     setLoading(true);
 
-    let imageUrl = undefined;
-    if (imageFile) {
+    let finalImageUrl = uploadedImageUrl;
+    if (imageFile && !finalImageUrl) {
       const formData = new FormData();
       formData.append('image', imageFile);
       try {
@@ -423,7 +454,7 @@ const ReportPage = () => {
           body: formData
         });
         const data = await res.json();
-        imageUrl = data.imageUrl;
+        finalImageUrl = data.imageUrl;
       } catch (err) {
         console.error('Failed to upload image:', err);
       }
@@ -441,7 +472,7 @@ const ReportPage = () => {
       verified: false,
       reporterId: currentUser.id,
       upvotes: 0,
-      imageUrl: imageUrl
+      imageUrl: finalImageUrl
     };
 
     await addIncident(newIncident);
@@ -528,7 +559,14 @@ const ReportPage = () => {
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   {previewUrl ? (
-                    <img src={previewUrl} alt="Preview" className="max-h-40 rounded object-contain" />
+                    <div className="relative w-full">
+                      <img src={previewUrl} alt="Preview" className="max-h-40 rounded object-contain mx-auto" />
+                      {isAnalyzing && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded">
+                          <div className="text-white text-xs font-bold animate-pulse">Analyzing...</div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <Camera size={24} className="mb-2" />
@@ -536,10 +574,15 @@ const ReportPage = () => {
                     </>
                   )}
                 </div>
+                {analysisResult && (
+                  <div className="text-xs p-2 bg-muted rounded border">
+                    <span className="font-bold">AI Analysis:</span> {analysisResult}
+                  </div>
+                )}
               </div>
 
               <div className="pt-4">
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || isAnalyzing}>
                   {loading ? 'Submitting...' : 'Submit Report'}
                 </Button>
               </div>

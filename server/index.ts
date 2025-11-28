@@ -174,14 +174,47 @@ const upload = multer({ storage });
 // Serve static files from uploads directory
 app.use('/uploads', express.static(uploadDir));
 
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', upload.single('image'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
         const imageUrl = `http://localhost:4000/uploads/${req.file.filename}`;
-        res.json({ imageUrl });
+
+        // Gemini Analysis
+        let analysis = null;
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                const { GoogleGenerativeAI } = await import("@google/generative-ai");
+                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+                const imagePath = req.file.path;
+                const imageData = fs.readFileSync(imagePath);
+                const imageBase64 = imageData.toString('base64');
+
+                const prompt = "Analyze this image. If it depicts a safety incident (theft, accident, fire, assault, suspicious activity, etc.), provide a short, factual description (max 2 sentences). If it does not appear to be a safety incident or is unclear, return 'Not a safety incident'.";
+
+                const result = await model.generateContent([
+                    prompt,
+                    {
+                        inlineData: {
+                            data: imageBase64,
+                            mimeType: req.file.mimetype
+                        }
+                    }
+                ]);
+                const response = await result.response;
+                analysis = response.text();
+            } catch (geminiError) {
+                console.error('Gemini analysis failed:', geminiError);
+                analysis = "Verification unavailable";
+            }
+        }
+
+        res.json({ imageUrl, analysis });
     } catch (error) {
+        console.error('Upload error:', error);
         res.status(500).json({ error: 'Failed to upload image' });
     }
 });
