@@ -595,7 +595,20 @@ const ReportPage = () => {
 };
 
 const SOSPage = () => {
-  const { sosActive, setSosActive } = useStore();
+  const { sosActive, setSosActive, triggerSOS, responders, fetchResponders, userLocation } = useStore();
+
+  React.useEffect(() => {
+    if (userLocation) {
+      fetchResponders(userLocation[0], userLocation[1]);
+    }
+  }, [userLocation]);
+
+  const handleSOS = () => {
+    if (!sosActive) {
+      triggerSOS();
+    }
+    setSosActive(!sosActive);
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
@@ -604,7 +617,7 @@ const SOSPage = () => {
         transition={{ repeat: sosActive ? Infinity : 0, duration: 1 }}
       >
         <button
-          onClick={() => setSosActive(!sosActive)}
+          onClick={handleSOS}
           className={`relative w-64 h-64 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${sosActive ? 'bg-safety-600 shadow-safety-500/50' : 'bg-safety-500 hover:bg-safety-600'}`}
         >
           {sosActive && (
@@ -636,23 +649,29 @@ const SOSPage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {MOCK_RESPONDERS.map((res, i) => (
-                  <div key={res.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-                        {res.type === 'police' ? '👮' : res.type === 'medical' ? '🚑' : '🛡️'}
-                      </div>
-                      <div className="text-left">
-                        <p className="font-bold text-sm">{res.name}</p>
-                        <p className="text-xs text-muted-foreground">{res.type.toUpperCase()}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-trust-500">{res.eta}</p>
-                      <p className="text-xs text-muted-foreground">{res.distance}</p>
-                    </div>
+                {responders.length === 0 ? (
+                  <div className="text-center text-muted-foreground p-4">
+                    Fetching nearby emergency services...
                   </div>
-                ))}
+                ) : (
+                  responders.map((res, i) => (
+                    <div key={res.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+                          {res.type === 'police' ? '👮' : res.type === 'medical' ? '🚑' : '🛡️'}
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-sm">{res.name}</p>
+                          <p className="text-xs text-muted-foreground">{res.type.toUpperCase()}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-trust-500">{res.eta}</p>
+                        <p className="text-xs text-muted-foreground">{res.distance}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -778,10 +797,11 @@ const NewsPage = () => {
 };
 
 const App = () => {
-  const { theme, fetchIncidents, setUserLocation } = useStore();
+  const { theme, fetchIncidents, setUserLocation, connectSocket } = useStore();
 
   useEffect(() => {
     fetchIncidents();
+    connectSocket();
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {

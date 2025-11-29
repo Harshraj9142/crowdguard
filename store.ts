@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { Incident, User, Comment, NewsItem } from './types';
+import { Incident, User, Comment, NewsItem, SOSResponder } from './types';
 import { MOCK_INCIDENTS, MOCK_USERS } from './constants';
+import { io, Socket } from 'socket.io-client';
 
 interface AppState {
   theme: 'light' | 'dark';
@@ -16,6 +17,7 @@ interface AppState {
   setUserLocation: (location: [number, number] | null) => void;
   sosActive: boolean;
   setSosActive: (active: boolean) => void;
+  triggerSOS: () => void;
   filters: Record<string, boolean>;
   toggleFilter: (type: string) => void;
   comments: Record<string, Comment[]>;
@@ -28,9 +30,13 @@ interface AppState {
   fetchLeaderboard: () => Promise<void>;
   news: NewsItem[];
   fetchNews: (latitude?: number, longitude?: number) => Promise<void>;
+  responders: SOSResponder[];
+  fetchResponders: (latitude: number, longitude: number) => Promise<void>;
+  socket: Socket | null;
+  connectSocket: () => void;
 }
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
   theme: 'dark',
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'light' ? 'dark' : 'light';
@@ -91,9 +97,25 @@ export const useStore = create<AppState>((set) => ({
   },
   currentUser: MOCK_USERS[0],
   userLocation: null,
-  setUserLocation: (location) => set({ userLocation: location }),
+  setUserLocation: (location) => {
+    set({ userLocation: location });
+    const socket = get().socket;
+    if (socket && location) {
+      socket.emit('updateLocation', { latitude: location[0], longitude: location[1] });
+    }
+  },
   sosActive: false,
   setSosActive: (active) => set({ sosActive: active }),
+  triggerSOS: () => {
+    const { socket, currentUser, userLocation } = get();
+    if (socket && userLocation) {
+      socket.emit('sosAlert', {
+        userId: currentUser.id,
+        location: { latitude: userLocation[0], longitude: userLocation[1] }
+      });
+      console.log('SOS Alert Sent');
+    }
+  },
   filters: {
     theft: true,
     assault: true,
@@ -164,18 +186,8 @@ export const useStore = create<AppState>((set) => ({
     if (!lat || !lon) return;
 
     try {
-      // 1. Reverse Geocode to get city/location name
-      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-      const geoData = await geoRes.json();
-      const locationName = geoData.address?.city || geoData.address?.town || geoData.address?.village || geoData.address?.county || 'Local';
-
-      console.log(`Fetching news for location: ${locationName}`);
-
-      // 2. Fetch Google News RSS via AllOrigins proxy to avoid CORS
-      const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(locationName + ' safety crime')}&hl=en-US&gl=US&ceid=US:en`;
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
-
-      const newsRes = await fetch(proxyUrl);
+      // Fetch from our backend proxy
+      const newsRes = await fetch(`http://localhost:4000/api/news?lat=${lat}&lon=${lon}`);
       const text = await newsRes.text();
 
       // 3. Parse XML
@@ -196,10 +208,7 @@ export const useStore = create<AppState>((set) => ({
           url: item.querySelector("link")?.textContent || "#",
           source: item.querySelector("source")?.textContent || "Google News",
           publishedAt: item.querySelector("pubDate")?.textContent || new Date().toISOString(),
-          // Google RSS doesn't provide easy images, so we'll use a placeholder or random safety image
-          imageUrl: `https://source.unsplash.com/random/800x600/?safety,city,${0 % 2 === 0 ? 'police' : 'emergency'}` // Note: Unsplash source might be deprecated/unreliable, let's use a reliable placeholder service or static images if needed. 
-          // Better to use a reliable static set or just omit if not found.
-          // Let's use a generic safety image from a reliable source or rotate through a few.
+          imageUrl: ""
         };
       });
 
@@ -225,5 +234,47 @@ export const useStore = create<AppState>((set) => ({
       ];
       set({ news: mockNews });
     }
+  },
+  responders: [],
+  fetchResponders: async (lat, lon) => {
+    try {
+      const res = await fetch(`http://localhost:4000/api/nearby-responders?lat=${lat}&lon=${lon}`);
+      const data = await res.json();
+      set({ responders: data });
+    } catch (error) {
+      console.error("Failed to fetch responders:", error);
+    }
+  },
+  socket: null,
+  connectSocket: () => {
+    const { socket } = get();
+    if (socket) return;
+
+    const newSocket = io('http://localhost:4000');
+
+    newSocket.on('connect', () => {
+      console.log('Connected to socket server');
+    });
+
+    newSocket.on('newIncident', (incident) => {
+      get().receiveIncident(incident);
+    });
+
+    newSocket.on('incidentUpdated', (incident) => {
+      get().updateIncident(incident);
+    });
+
+    newSocket.on('newComment', (comment) => {
+      get().receiveComment(comment);
+    });
+
+    newSocket.on('sosAlert', (data) => {
+      console.log("SOS RECEIVED", data);
+      // In a real app, we would trigger a UI alert here
+      // For now, let's just log it or maybe set a global alert state if we had one
+      alert(`SOS Alert! Someone needs help at ${data.location.latitude}, ${data.location.longitude}`);
+    });
+
+    set({ socket: newSocket });
   }
 }));

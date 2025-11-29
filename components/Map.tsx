@@ -65,10 +65,9 @@ const LocationMarker = ({ position }: { position: [number, number] | null }) => 
 };
 
 const MapComponent: React.FC = () => {
-  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation, receiveComment, filters } = useStore();
+  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation, receiveComment, filters, socket } = useStore();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
 
@@ -76,22 +75,16 @@ const MapComponent: React.FC = () => {
     // Fetch initial incidents
     fetchIncidents();
 
-    // Connect to backend
-    const newSocket = io('http://localhost:4000');
-    setSocket(newSocket);
+    if (!socket) return;
 
-    newSocket.on('connect', () => {
-      console.log('Connected to socket server');
-    });
-
-    newSocket.on('locationUpdate', (data: { id: string; latitude: number; longitude: number }) => {
+    socket.on('locationUpdate', (data: { id: string; latitude: number; longitude: number }) => {
       setOtherUsers((prev) => ({
         ...prev,
         [data.id]: { latitude: data.latitude, longitude: data.longitude }
       }));
     });
 
-    newSocket.on('userDisconnected', (id: string) => {
+    socket.on('userDisconnected', (id: string) => {
       setOtherUsers((prev) => {
         const newState = { ...prev };
         delete newState[id];
@@ -99,25 +92,11 @@ const MapComponent: React.FC = () => {
       });
     });
 
-    newSocket.on('newIncident', (incident) => {
-      console.log('New incident received:', incident);
-      receiveIncident(incident);
-    });
-
-    newSocket.on('incidentUpdated', (incident) => {
-      console.log('Incident updated:', incident);
-      updateIncident(incident);
-    });
-
-    newSocket.on('newComment', (comment) => {
-      console.log('New comment received:', comment);
-      receiveComment(comment);
-    });
-
     return () => {
-      newSocket.disconnect();
+      socket.off('locationUpdate');
+      socket.off('userDisconnected');
     };
-  }, []);
+  }, [socket]);
 
   const handleLocate = () => {
     setLoadingLocation(true);
