@@ -14,6 +14,7 @@ import { Incident } from './types';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -113,6 +114,8 @@ const DashboardPage = () => {
   const [timeFilter, setTimeFilter] = React.useState<'24h' | '7d' | 'all'>('all');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [newComment, setNewComment] = React.useState('');
+  const [typeFilter, setTypeFilter] = React.useState<string>('all');
+  const [sortBy, setSortBy] = React.useState<'newest' | 'severity' | 'verified'>('newest');
 
   const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
   const incidentComments = selectedIncidentId ? (comments[selectedIncidentId] || []) : [];
@@ -124,9 +127,10 @@ const DashboardPage = () => {
   }, [selectedIncidentId]);
 
   const filteredIncidents = incidents.filter(inc => {
-    const matchesType = filters[inc.type];
-    if (!matchesType) return false;
+    // Type Filter (Dropdown)
+    if (typeFilter !== 'all' && inc.type !== typeFilter) return false;
 
+    // Time Filter
     if (timeFilter !== 'all') {
       const incDate = new Date(inc.timestamp);
       const now = new Date();
@@ -135,6 +139,7 @@ const DashboardPage = () => {
       if (timeFilter === '7d' && diffHours > 24 * 7) return false;
     }
 
+    // Search Query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
@@ -145,6 +150,15 @@ const DashboardPage = () => {
     }
 
     return true;
+  }).sort((a, b) => {
+    if (sortBy === 'newest') {
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    } else if (sortBy === 'severity') {
+      return (b.severity || 0) - (a.severity || 0);
+    } else if (sortBy === 'verified') {
+      return (Number(b.verified) - Number(a.verified));
+    }
+    return 0;
   });
 
   const handlePostComment = async (e: React.FormEvent) => {
@@ -182,23 +196,25 @@ const DashboardPage = () => {
                 />
               </div>
 
+              {/* Type Filter Dropdown */}
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2">FILTERS</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Theft', 'Assault', 'Accident', 'Suspicious', 'Harassment', 'Other'].map(type => (
-                    <label key={type} className="flex items-center space-x-2 text-xs cursor-pointer hover:opacity-80">
-                      <input
-                        type="checkbox"
-                        checked={filters[type.toLowerCase()]}
-                        onChange={() => toggleFilter(type.toLowerCase())}
-                        className="rounded border-primary text-primary focus:ring-primary"
-                      />
-                      <span>{type}</span>
-                    </label>
-                  ))}
-                </div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2">FILTER BY TYPE</p>
+                <select
+                  className="w-full text-sm border rounded p-1 bg-background"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                >
+                  <option value="all">All Types</option>
+                  <option value="theft">Theft</option>
+                  <option value="assault">Assault</option>
+                  <option value="accident">Accident</option>
+                  <option value="suspicious">Suspicious</option>
+                  <option value="harassment">Harassment</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
 
+              {/* Time Range Dropdown */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-2">TIME RANGE</p>
                 <select
@@ -223,6 +239,18 @@ const DashboardPage = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-sm">Nearby Alerts</CardTitle>
                   <Badge variant="destructive" className="animate-pulse">LIVE</Badge>
+                </div>
+                {/* Sort Dropdown */}
+                <div className="mt-2">
+                  <select
+                    className="w-full text-xs border rounded p-1 bg-background"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                  >
+                    <option value="newest">Newest First</option>
+                    <option value="severity">Highest Severity</option>
+                    <option value="verified">Verified First</option>
+                  </select>
                 </div>
               </CardHeader>
               <div className="overflow-y-auto p-0">

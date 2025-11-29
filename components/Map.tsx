@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { io, Socket } from 'socket.io-client';
@@ -48,14 +48,23 @@ const otherUserIcon = L.divIcon({
   iconAnchor: [8, 8]
 });
 
-// Component to update map center when user location changes
-const LocationMarker = ({ position }: { position: [number, number] | null }) => {
+const LocationMarker = ({ position, followUser, setFollowUser }: { position: [number, number] | null, followUser: boolean, setFollowUser: (follow: boolean) => void }) => {
   const map = useMap();
+
   useEffect(() => {
-    if (position) {
+    if (position && followUser) {
       map.flyTo(position, map.getZoom());
     }
-  }, [position, map]);
+  }, [position, followUser, map]);
+
+  useMapEvents({
+    dragstart: () => {
+      setFollowUser(false);
+    },
+    click: () => {
+      // Optional: stop following on click too?
+    }
+  });
 
   return position === null ? null : (
     <Marker position={position} icon={userLocationIcon}>
@@ -65,11 +74,11 @@ const LocationMarker = ({ position }: { position: [number, number] | null }) => 
 };
 
 const MapComponent: React.FC = () => {
-  const { theme, incidents, fetchIncidents, receiveIncident, addIncident, updateIncident, setUserLocation, receiveComment, filters, socket } = useStore();
-  const [position, setPosition] = useState<[number, number] | null>(null);
+  const { theme, incidents, fetchIncidents, userLocation, setUserLocation, filters, socket, selectIncident } = useStore();
   const [otherUsers, setOtherUsers] = useState<Record<string, { latitude: number; longitude: number }>>({});
-  const [loadingLocation, setLoadingLocation] = useState(true);
+  const [loadingLocation, setLoadingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [followUser, setFollowUser] = useState(true);
 
   useEffect(() => {
     // Fetch initial incidents
@@ -98,9 +107,12 @@ const MapComponent: React.FC = () => {
     };
   }, [socket]);
 
+  // We rely on App.tsx for the global geolocation watcher.
+  // However, we can still provide a manual "Locate Me" button that forces a high-accuracy read and re-centers.
   const handleLocate = () => {
     setLoadingLocation(true);
     setLocationError(null);
+    setFollowUser(true); // Re-enable following
 
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported by your browser');
@@ -108,76 +120,39 @@ const MapComponent: React.FC = () => {
       return;
     }
 
-    const success = (pos: GeolocationPosition) => {
-      const { latitude, longitude } = pos.coords;
-      setPosition([latitude, longitude]);
-      setUserLocation([latitude, longitude]);
-      setLoadingLocation(false);
-      if (socket) {
-        socket.emit('updateLocation', { latitude, longitude });
-      }
-    };
-
-    const error = (err: GeolocationPositionError) => {
-      console.error('Error getting location', err);
-      let msg = 'Unable to retrieve your location';
-      if (err.code === 1) msg = 'Location permission denied. Please allow access.';
-      if (err.code === 2) msg = 'Location unavailable. Check GPS/Network.';
-      if (err.code === 3) msg = 'Location request timed out.';
-
-      setLocationError(msg);
-      setLoadingLocation(false);
-    };
-
-    const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 };
-
-    navigator.geolocation.getCurrentPosition(success, error, options);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUserLocation([latitude, longitude]);
+        setLoadingLocation(false);
+        if (socket) {
+          socket.emit('updateLocation', { latitude, longitude });
+        }
+      },
+      (err) => {
+        console.error('Error getting location', err);
+        let msg = 'Unable to retrieve your location';
+        if (err.code === 1) msg = 'Location permission denied.';
+        if (err.code === 2) msg = 'Location unavailable.';
+        if (err.code === 3) msg = 'Location request timed out.';
+        setLocationError(msg);
+        setLoadingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
-  useEffect(() => {
-    if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setPosition([latitude, longitude]);
-          setUserLocation([latitude, longitude]);
-          setLoadingLocation(false);
-          setLocationError(null);
-          if (socket) {
-            socket.emit('updateLocation', { latitude, longitude });
-          }
-        },
-        (err) => {
-          console.error('Watch position error', err);
-          // Only show error if we don't have a position yet
-          if (!position) {
-            let msg = 'Unable to retrieve your location';
-            if (err.code === 1) msg = 'Location permission denied. Please allow access.';
-            if (err.code === 2) msg = 'Location unavailable. Check GPS/Network.';
-            if (err.code === 3) msg = 'Location request timed out.';
-            setLocationError(msg);
-            setLoadingLocation(false);
-          }
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-      );
-      return () => navigator.geolocation.clearWatch(watchId);
-    } else {
-      setLocationError('Geolocation is not supported by your browser');
-      setLoadingLocation(false);
-    }
-  }, [socket]);
-
   const handleReportTestIncident = () => {
-    if (!position) return;
+    if (!userLocation) return;
     const types = ['theft', 'assault', 'harassment', 'accident', 'suspicious'] as const;
     const randomType = types[Math.floor(Math.random() * types.length)];
+    const { addIncident } = useStore.getState(); // Access action directly if not destructured
 
     addIncident({
       id: Date.now().toString(),
       type: randomType,
-      latitude: position[0] + (Math.random() - 0.5) * 0.01,
-      longitude: position[1] + (Math.random() - 0.5) * 0.01,
+      latitude: userLocation[0] + (Math.random() - 0.5) * 0.01,
+      longitude: userLocation[1] + (Math.random() - 0.5) * 0.01,
       description: `Reported ${randomType} near you`,
       timestamp: new Date().toISOString(),
       verified: false,
@@ -187,7 +162,7 @@ const MapComponent: React.FC = () => {
   };
 
   // Default center (NYC) if no location yet
-  const center: [number, number] = position || [40.7128, -74.0060];
+  const center: [number, number] = userLocation || [40.7128, -74.0060];
 
   return (
     <div className="w-full h-full relative z-0">
@@ -202,7 +177,7 @@ const MapComponent: React.FC = () => {
           url={`https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`}
         />
 
-        <LocationMarker position={position} />
+        <LocationMarker position={userLocation} followUser={followUser} setFollowUser={setFollowUser} />
 
         {/* Render other users */}
         {Object.entries(otherUsers).map(([id, loc]: [string, { latitude: number; longitude: number }]) => (
@@ -219,7 +194,7 @@ const MapComponent: React.FC = () => {
                 <strong className="capitalize text-lg">{incident.type}</strong>
                 <p className="text-sm my-1">{incident.description}</p>
                 <button
-                  onClick={() => useStore.getState().selectIncident(incident.id)}
+                  onClick={() => selectIncident(incident.id)}
                   className="mt-2 text-xs bg-primary text-primary-foreground px-2 py-1 rounded w-full hover:bg-primary/90"
                 >
                   View Details
@@ -242,13 +217,13 @@ const MapComponent: React.FC = () => {
 
         <button
           onClick={handleLocate}
-          className="bg-background border border-input shadow-lg rounded-full p-3 hover:bg-muted transition-colors"
+          className={`bg-background border border-input shadow-lg rounded-full p-3 hover:bg-muted transition-colors ${followUser && userLocation ? 'text-primary border-primary' : 'text-muted-foreground'}`}
           title="Locate Me"
         >
           {loadingLocation ? (
             <Loader2 className="animate-spin text-primary" size={24} />
           ) : (
-            <Navigation className={position ? "text-primary" : "text-muted-foreground"} size={24} />
+            <Navigation size={24} className={followUser && userLocation ? "fill-current" : ""} />
           )}
         </button>
       </div>
